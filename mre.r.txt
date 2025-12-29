@@ -1,0 +1,122 @@
+#-----Install Necessary Packages-------------
+install.packages('earth')
+
+
+#-----Load package-------------
+library("earth")
+
+#-------Import data------------
+#MRE <- read.csv("~/Documents/Egnyte/Shared/Survey Model/RecEng/MRE.csv")
+MRE <- read.csv("~/Documents/Recommendation Engine/MRE_data_20151012T154304.csv")
+
+#------Data Cleaning----------
+
+# convert empty and null to NA
+MRE[MRE==""] <- NA
+MRE[MRE=="(null)"] <- NA
+MRE[MRE=="NULL"] <- NA
+
+# drop cobra participants
+MRE <- MRE[!grepl("cobra", MRE$division_name, ignore.case=TRUE),]
+
+# drop records with $0 premium or $0 dc amount
+# NOTE: ast20150804 - CANNOT have nulls for er_amount or this NAs the 1/0 data (e.g. hsa, family)
+MRE <- MRE[(MRE$prem_amount>0) & (MRE$er_amount>0),]
+
+# calculate age variable
+MRE$age <- as.character(MRE$birth_year_only)
+substring(MRE$age,1,5) = '0000'
+MRE$age <- as.numeric(MRE$age)
+MRE$age <- MRE$plan_year - MRE$age
+
+# convert completed_survey and hsa to factors
+# NOTE: ast20150804 - need to replace NULLs with zeros prior to creating factors
+MRE$completed_survey <- factor(MRE$completed_survey)
+MRE$hsa <- factor(MRE$hsa)
+MRE$family <- factor(MRE$family)
+
+# convert factors to numeric
+MRE$er_amount <- as.numeric(as.character(MRE$er_amount))
+MRE$deductible <- as.numeric(as.character(MRE$deductible))
+MRE$out_of_pocket_max <- as.numeric(as.character(MRE$out_of_pocket_max))
+MRE$min_oop_offered <- as.numeric(as.character(MRE$min_oop_offered))
+MRE$max_oop_offered <- as.numeric(as.character(MRE$max_oop_offered))
+MRE$min_deductible_offered <- as.numeric(as.character(MRE$min_deductible_offered))
+MRE$max_deductible_offered <- as.numeric(as.character(MRE$max_deductible_offered))
+
+# combine single/family survey responses
+MRE$doctor_utilization2 <- do.call(paste, c(MRE[c("doctor_utilization", "doctor_utilization_family")], sep = ""))
+MRE$doctor_utilization2 <- gsub("NA", "", MRE$doctor_utilization2)
+MRE$prescription_coverage2 <- do.call(paste, c(MRE[c("prescription_coverage", "prescription_coverage_family")], sep = ""))
+MRE$prescription_coverage2 <- gsub("NA", "", MRE$prescription_coverage2)
+MRE$health_savings_acct2 <- do.call(paste, c(MRE[c("health_savings_acct", "health_savings_acct_family")], sep = ""))
+MRE$health_savings_acct2 <- gsub("NA", "", MRE$health_savings_acct2)
+MRE$insurance_util2 <- do.call(paste, c(MRE[c("insurance_util", "insurance_util_family")], sep = ""))
+MRE$insurance_util2 <- gsub("NA", "", MRE$insurance_util2)
+MRE$expected_major_exp2 <- do.call(paste, c(MRE[c("expected_major_exp", "expected_major_exp_family")], sep = ""))
+MRE$expected_major_exp2 <- gsub("NA", "", MRE$expected_major_exp2)
+MRE$health_overall2 <- do.call(paste, c(MRE[c("health_overall", "health_overall_family")], sep = ""))
+MRE$health_overall2 <- gsub("NA", "", MRE$health_overall2)
+MRE$exercise_habits2 <- do.call(paste, c(MRE[c("exercise_habits", "exercise_habits_family")], sep = ""))
+MRE$exercise_habits2 <- gsub("NA", "", MRE$exercise_habits2)
+MRE$finance_goal2 <- do.call(paste, c(MRE[c("finance_goal", "finance_goal_family")], sep = ""))
+MRE$finance_goal2 <- gsub("NA", "", MRE$finance_goal2)
+MRE$value_orientation2 <- do.call(paste, c(MRE[c("value_orientation", "value_orientation_family")], sep = ""))
+MRE$value_orientation2 <- gsub("NA", "", MRE$value_orientation2)
+MRE$shopping_preference2 <- do.call(paste, c(MRE[c("shopping_preference", "shopping_preference_family")], sep = ""))
+MRE$shopping_preference2 <- gsub("NA", "", MRE$shopping_preference2)
+MRE$sick_behavior2 <- do.call(paste, c(MRE[c("sick_behavior", "sick_behavior_family")], sep = ""))
+MRE$sick_behavior2 <- gsub("NA", "", MRE$sick_behavior2)
+MRE$risk_orientation_a2 <- do.call(paste, c(MRE[c("risk_orientation_a", "risk_orientation_family")], sep = ""))
+MRE$risk_orientation_a2 <- gsub("NA", "", MRE$risk_orientation_a2)
+
+# drop factors with only one level
+MRE <- MRE[sapply(MRE, function(x) !is.factor(x) || length(levels(x))>1)]
+
+# restrict to useful features
+#MRE.all <- subset(MRE, select = c(age, gender, hsa, tier, family, deductible, out_of_pocket_max, er_amount, min_oop_offered, max_oop_offered, min_deductible_offered, max_deductible_offered, doctor_utilization2, prescription_coverage2, health_savings_acct2, save_med_retire, premiums, out_of_pocket, insurance_util2, expected_major_exp2, health_overall2, exercise_habits2, financial_situation, finance_goal2, value_orientation2, shopping_preference2, sick_behavior2, risk_orientation_a2))
+# NOTE: ast20150804 - Removed data elements that are no longer represented by the survey (exercise_habits2, finance_goal2, value_orientation2, shopping_preference2)
+# NOTE: ast20150804 - Added new data element (health_motivation)
+MRE.all <- subset(MRE, select = c(age, gender, hsa, tier, family, deductible, out_of_pocket_max, er_amount, min_oop_offered, max_oop_offered, min_deductible_offered, max_deductible_offered, doctor_utilization2, prescription_coverage2, health_savings_acct2, save_med_retire, premiums, out_of_pocket, insurance_util2, expected_major_exp2, health_overall2, health_motivation, financial_situation, sick_behavior2, risk_orientation_a2))
+# remove first_two_zip because it likely has no barring
+# remove completed_survey because member will have to have completed the survey for this formula to work
+# remove carrier because we don't want groups with a specific carrier to uniformly impact future members from the carrier
+# remove premium_amount because this is dependent on where the member ultimately enrolls
+# remove ee_amount for same point as above
+# remove remaining_amount for same point as above
+
+# What the subsets are for (deductible as the example): The deductible subset first removes HSA and OOPM because these will eventually be predicted values and will not be known
+# upfront, so we can't input them into the model to utimately predict deductible. Deductible remains in the data subset as this is what we're predicting. Think of the
+# equation, y=mx+b, how would you know how well you're predicting the y variable without seeing it's interactions with other variables, x & y in this case.
+# na.omit is a data cleaning step that removes any rows where there is a missing value in the subset
+
+MRE.all.ded <- subset(MRE.all, select = -c(hsa, out_of_pocket_max))
+MRE.all.ded <- na.omit(MRE.all.ded)
+MRE.all.oop <- subset(MRE.all, select = -c(hsa, deductible))
+MRE.all.oop <- na.omit(MRE.all.oop)
+MRE.all.hsa <- subset(MRE.all, select = -c(deductible, out_of_pocket_max))
+MRE.all.hsa <- na.omit(MRE.all.hsa)
+
+
+# ------Build Models----------
+
+# Learn deductible
+# MARS - multi-variate adaptive regression splines
+earth_MRE.all.ded <- earth(deductible ~ ., data = MRE.all.ded, degree = 2, nprune = 62)
+summary(earth_MRE.all.ded)
+
+
+# Learn out-of-pocket 
+# # MARS - multi-variate adaptive regression splines
+earth_MRE.all.oop <- earth(out_of_pocket_max ~ ., data = MRE.all.oop, degree = 2, nprune = 62)
+summary(earth_MRE.all.oop)
+
+# Learn HSA
+
+# MRE.all.hsa$hsa <- as.numeric(levels(MRE.all.hsa$hsa))[MRE.all.hsa$hsa]
+MRE.all.hsa <- na.omit(MRE.all.hsa)
+
+# learn HSA for both individual and family, combined
+# MARS - multi-variate adaptive regression splines
+earth_MRE.all.hsa <- earth(hsa ~ ., data = MRE.all.hsa, degree = 2, nprune = 62)
+summary(earth_MRE.all.hsa)
